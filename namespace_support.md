@@ -215,6 +215,8 @@ The goal of this design is to provide more consistent native namespace support i
 
 ## ROS Spawn: Add a new param
 
+* **Related repo**: [ros_gz](https://github.com/gazebosim/ros_gz)
+
 * **Approach**: Following the existing handling of the `name` parameter, add support for a new `namespace` parameter in [ros_gz/ros_gz_sim/src/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/spawn_entity.cpp). Users can pass the `namespace` through a ROS command, and it will be injected into the `model` / `world` attribute.
 
 ## gz service Spawn: Add a new .msg
