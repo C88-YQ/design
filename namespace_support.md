@@ -108,7 +108,7 @@ The goal of this design is to provide more consistent native namespace support i
 
   4. Process the topic/service name by prefixing them with the namespace
 
-     Some plugins already implement similar logic. This spreadsheet provides a summary of all files in `gz-sim` and `gz-sensors` that subscribe to or publish topics, or request or respond to services: [gz topic/service name (google sheet)](https://docs.google.com/spreadsheets/d/1cAMCDN0G4u9e8qY6JsHsg-BNu7L90wpH13zXZrehc5U/edit?usp=sharing)
+     Some plugins already implement similar logic. This spreadsheet provides a summary of all files in `gz-sim` and `gz-sensors` that subscribe to or publish topics, or request or respond to services: [gz topic/service name (google sheet)](https://docs.google.com/spreadsheets/d/e/2PACX-1vRW_W8nroG_7Hcvlt8TP_o85oyIVJ_FXLulsFX6GcIHwTTIL7DPSbUV34uSMJxfD4j1Cxv78Ouv3BOe/pubhtml)
 
      1. `common`:
 
