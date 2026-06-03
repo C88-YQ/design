@@ -14,11 +14,35 @@ The goal of this design is to provide more consistent native namespace support i
 
 * **Related discussion**: [sdformat #1659 issue: Add namespace support to SDF elements for easier multi-robot simulation](https://github.com/gazebosim/sdformat/issues/1659)
 
-* **Scope**: `world`,` model`, `sensor`, `plugin`,` particle_emitter`,` include` 
+* **Scope**: ` model` and ` include` 
+
+* **Future consideration**: `plugin`, `sensor`, ` particle_emitter` and `world`
+
+* **Purpose**:
+
+  1. **Namespace support for model**
+
+     The main target use case is multi-robot simulation. In this case, different instances of the same robot model often need separate communication interfaces.
+
+  2. **Namespace override for included models**
+
+     `include` is commonly used to instantiate models. Adding a `namespace` element to `include` allows users to override the namespace of the included model. Adding namespace support to `model` provides a direct way to separate communication interfaces for different robot instances.
+
+  3. **Namespace support for plugins, sensors, and particle emitters**
+
+     `plugin`, `sensor`, and `particle_emitter` were considered because they may publish or subscribe to topics, or have service-related communication. Supporting namespaces for them could make Gazebo’s namespace mechanism more complete and consistent across different communication-related elements.
+
+  4. **Namespace support for world**
+
+      `world` was considered for possible multi-world use cases.
+
+  5. **Initial implementation scope**
+
+     Considering the multi-robot use case, `model` namespace support should cover most common scenarios where communication separation is needed. Therefore, the initial implementation will focus on `model` and the corresponding `include` override first. Namespace support for `plugin`, `sensor`, `particle_emitter`, and `world` can be reconsidered after the model namespace support is more complete.
 
 * **Approach**: 
 
-  1. Add an **optional** `namespace` **attribute** to `world`, `model`, `sensor`, and `plugin`
+  1. Add an **optional** `namespace` **attribute** to `model`
 
      Since `namespace` is similar to `name` in that it describes metadata of the element itself, it may be reasonable to define it as an **attribute**. For example:
 
@@ -34,7 +58,7 @@ The goal of this design is to provide more consistent native namespace support i
 
   2. Add an **optional** `namespace` **element** to `include`
 
-     For `include`, the design may need to be different from `world`, `model`, `sensor`, and `plugin`. It may be better to follow the current `name` **override** style in `include`, and add `namespace` as an **element** inside `include`. For example:
+     For `include`, the design may need to be different from `model`. It may be better to follow the current `name` **override** style in `include`, and add `namespace` as an **element** inside `include`. For example:
 
      ```xml
      <include>
