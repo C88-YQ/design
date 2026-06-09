@@ -142,12 +142,12 @@ The goal of this design is to provide more consistent native namespace support i
 
           | topic                | sdf param         | customized topic name | default topic name                                  |
           | -------------------- | ----------------- | --------------------- | --------------------------------------------------- |
-          | /camera/depth        | topic             | /<topic>              | /camera/depth                                       |
-          | /camera_info         | camera_info_topic | /<camera_info_topic>  | /<camera_depth_topic without last part>/camera_info |
-          | /points              |                   |                       | /<camera_depth_topic>/points                        |
-          | /set_rate            | topic             | /<topic>/set_rate     | /{sensor_name}/set_rate                             |
-          | /performance_metrics |                   |                       | /<camera_depth_topic>/performance_metrics           |
-          | /trigger             | trigger_topic     | /<trigger_topic>      | /<camera_depth_topic>/trigger                       |
+          | /camera/depth        | topic             | /&lt;topic&gt;           | /camera/depth                                       |
+          | /camera_info         | camera_info_topic | /&lt;camera_info_topic&gt;  | /&lt;camera_depth_topic without last part&gt;/camera_info |
+          | /points              |                   |                       | /&lt;camera_depth_topic&gt;/points                        |
+          | /set_rate            | topic             | /&lt;topic&gt;/set_rate     | /{sensor_name}/set_rate                             |
+          | /performance_metrics |                   |                       | /&lt;camera_depth_topic&gt;/performance_metrics           |
+          | /trigger             | trigger_topic     | /&lt;trigger_topic&gt;      | /&lt;camera_depth_topic&gt;/trigger                       |
 
         - **Approach**: If a namespace attribute is set at any level, the final full namespace will be prepended to both customized topic names and default topic names. If no namespace attribute is set, the topic names will remain unchanged.
 
@@ -183,15 +183,15 @@ The goal of this design is to provide more consistent native namespace support i
 
           | topic    | sdf param | customized topic name           | default topic name          |
           | -------- | --------- | ------------------------------- | --------------------------- |
-          | /cmd_vel | topic     | /<topic>                        | /model/{model_name}/cmd_vel |
-          |          | sub_topic | /model/{model_name}/<sub_topic> | /model/{model_name}/cmd_vel |
+          | /cmd_vel | topic     | /&lt;topic&gt;                     | /model/{model_name}/cmd_vel |
+          |          | sub_topic | /model/{model_name}/&lt;sub_topic&gt; | /model/{model_name}/cmd_vel |
 
         * **Example2**:[gz-sim/src/systems/buoyancy_engine/BuoyancyEngine.cc](https://github.com/gazebosim/gz-sim/blob/main/src/systems/buoyancy_engine/BuoyancyEngine.cc)
 
           | topic   | sdf param | customized topic name                             | default topic name              |
           | ------- | --------- | ------------------------------------------------- | ------------------------------- |
-          | /cmd    | namespace | /model/<namespace>/buoyancy_engine/               | /buoyancy_engine/               |
-          | /status | namespace | /model/<namespace>/buoyancy_engine/current_volume | /buoyancy_engine/current_volume |
+          | /cmd    | namespace | /model/&lt;namespace&gt;/buoyancy_engine/               | /buoyancy_engine/               |
+          | /status | namespace | /model/&lt;namespace&gt;/buoyancy_engine/current_volume | /buoyancy_engine/current_volume |
 
         * **Approach**: If a namespace attribute is set at any level, the final full namespace will be prepended to both customized topic names and default topic names. If no namespace attribute is set, the topic names will remain unchanged.
 
@@ -203,8 +203,8 @@ The goal of this design is to provide more consistent native namespace support i
 
           | topic    | sdf param                                            | customized topic name               | default topic name        |
           | -------- | ---------------------------------------------------- | ----------------------------------- | ------------------------- |
-          | /cmd_vel | robotNamespace(required) & commandSubtopic(optional) | /<robotNamespace>/<commandSubtopic> | /<robotNamespace>/cmd_vel |
-          | /enable  | robotNamespace(required) & enableSubtopic(optional)  | /<robotNamespace>/<enableSubtopic>  | /<robotNamespace>/enable  |
+          | /cmd_vel | robotNamespace(required) & commandSubtopic(optional) | /&lt;robotNamespace&gt;/&lt;commandSubtopic&gt; | /&lt;robotNamespace&gt;/cmd_vel |
+          | /enable  | robotNamespace(required) & enableSubtopic(optional)  | /&lt;robotNamespace&gt;/&lt;enableSubtopic&gt;  | /&lt;robotNamespace&gt;/enable  |
 
           **Note**: For this plugin, the namespace should first be resolved from the plugin namespace or the namespace of the model that directly contains the plugin. If either one is specified, it will be used as `robotNamespace`, regardless of whether the existing `robotNamespace` parameter is still present. If neither namespace is specified, the plugin will fall back to the existing `robotNamespace` parameter. If no namespace can be resolved, the plugin should report an error indicating that `robotNamespace` is required.
 
@@ -229,8 +229,8 @@ The goal of this design is to provide more consistent native namespace support i
 
           | topic      | sdf param | customized topic name           | default topic name |
           | ---------- | --------- | ------------------------------- | ------------------ |
-          | /actuators | topic     | /<topic>                        | /actuators         |
-          |            | sub_topic | /model/{model_name}/<sub_topic> | /actuators         |
+          | /actuators | topic     | /&lt;topic&gt;                     | /actuators         |
+          |            | sub_topic | /model/{model_name}/&lt;sub_topic&gt; | /actuators         |
 
         * **Approach**:
 
