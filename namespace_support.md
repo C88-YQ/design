@@ -2,11 +2,58 @@
 
 ## Background and Purpose
 
-In multi-robot simulations, being able to reuse the same SDF / URDF robot description file to create multiple robot instances through mechanisms such as `<include>`, ROS spawn, or Gazebo service spawn would significantly simplify  simulation configuration. 
+In multi-robot simulations, it is common to reuse the same SDF / URDF robot description file to create multiple robot instances through mechanisms such as `<include>`, ROS spawn, or Gazebo service spawn. Reusing the same description file keeps simulation configuration simpler and avoids maintaining multiple nearly identical model files.
 
-However, to avoid topic collisions between robot instances, users currently often need to manually modify the description file, for example by adding prefixes to topic names, sensor parameters, or plugin parameters. This introduces duplicated SDF / URDF content and increases maintenance cost. 
+However, each robot instance often needs its own communication scope. To avoid topic / service collisions between robot instances, users currently often need to manually modify the description file, for example by adding prefixes to topic / service names. This introduces duplicated SDF / URDF content and increases maintenance cost. 
 
 The goal of this design is to provide more consistent native namespace support in Gazebo, allowing different model instances to be assigned different namespaces without duplicating or heavily modifying the original description file, while keeping their communication interfaces isolated and enabling more scalable multi-robot simulation.
+
+1. Consistent communication isolation
+ 
+   Gazebo currently does not provide a fully consistent mechanism for communication isolation. Some plugins already expose namespace-like configuration options, such as `namespace` parameter in [Truster](https://github.com/gazebosim/gz-sim/blob/af5d2ac7f022547d4146324b08aee4af32318576/src/systems/thruster/Thruster.cc#L228-L233) and `robotNamespace` in [MulticopterVelocityControl](https://github.com/gazebosim/gz-sim/blob/af5d2ac7f022547d4146324b08aee4af32318576/src/systems/multicopter_control/MulticopterVelocityControl.cc#L248-L264), but this behavior is plugin-specific. Other plugins only expose individual topic /service names, and some interfaces may not provide an explicit isolation mechanism at all.
+   
+   This makes multi-robot configuration inconsistent: users need to understand the topic /service configuration behavior of each individual plugin or sensor, and different systems may require different ways to avoid topic /service collisions. Introducing a native namespace mechanism provides a shared concept that can be applied more consistently across Gazebo.
+
+2. Simpler model reuse
+
+   Even when a plugin already supports namespace-like parameters, users often still need to edit the SDF / URDF file or use an external macro system such as xacro to pass different values into otherwise identical robot descriptions. Without such preprocessing, users may end up maintaining multiple nearly identical model files that differ only in topic / service prefixes.
+
+   Native namespace support gives users a simpler alternative, because the namespace can be provided through the model description, `<include>`, or spawn-time configuration and then made available to plugins and other communication interfaces. The same robot description can be reused as-is, while different namespaces can be assigned when the model is included or spawned. This reduces duplicated model content and makes multi-robot worlds easier to configure and maintain.
+
+3. Explicit optional behavior and backward compatibility
+
+   Namespace support should be optional. If no namespace is specified, Gazebo should preserve the existing topic /service and naming behavior. This avoids changing existing worlds and prevents namespace support from introducing unexpected topic /service names.
+
+   When a namespace is specified, Gazebo can use it to resolve relative communication interfaces. At the same time, users should still be able to use absolute names when they want a topic / service or interface to remain global. This keeps the feature flexible while preserving compatibility with existing configurations.
+
+4. More flexibility than reusing name
+
+   One possible alternative is to reuse the existing name field as the namespace. However, entity or plugin names are required, while namespaces should be optional. If Gazebo used entity names as namespaces automatically, every model or nested entity name could become part of the final topic / service  name.
+
+   This can reduce user control and may produce unnecessarily long topic / service names in complex nested model structures. A separate optional namespace field gives users explicit control over the communication name. It allows the final topic / service name to include only the hierarchy levels that are chosen by user, instead of forcing it to follow the full entity naming hierarchy.
+
+5. Clearer semantics
+
+   The name and namespace fields describe different concepts:
+   * The name field identifies an entity, model, or system instance in the simulation. 
+   * The namespace field describes the communication scope used by topics / services and related interfaces.
+
+   Keeping these concepts separate makes the model description clearer. For example:
+   ```xml
+   <model name="robot1">
+         ...
+      <plugin
+         filename="gz-sim-diff-drive-system"
+         name="gz::sim::systems::DiffDrive"
+         namespace="controller">
+         ...
+      </plugin>
+   </model>
+   ```
+
+   In this example, the plugin name identifies the system implementation or instance, while `namespace="controller"` describes the communication scope used by that plugin. These two values have different meanings and should not be forced to be the same.
+
+   At the same time, there are valid cases where users may want the namespace to follow the entity name. To support this without conflating the two fields, this design provides the `__name__` placeholder for namespace values. When used, `__name__` is resolved to the corresponding entity name, allowing the namespace to automatically follow name changes while still keeping name and namespace as separate concepts.
 
 ## SDFormat attribute
 
@@ -149,7 +196,11 @@ The goal of this design is to provide more consistent native namespace support i
           | /performance_metrics |                   |                       | /&lt;camera_depth_topic&gt;/performance_metrics           |
           | /trigger             | trigger_topic     | /&lt;trigger_topic&gt;      | /&lt;camera_depth_topic&gt;/trigger                       |
 
-        - **Approach**: If a namespace attribute is set at any level, the final full namespace will be prepended to both customized topic names and default topic names. If no namespace attribute is set, the topic names will remain unchanged.
+        - **Approach**: 
+            * If no namespace is set, all topic names keep their existing naming behavior.
+            * If a user-defined topic name starts with `/`, it is treated as an **absolute topic name**, so no namespace is prepended.
+            * If a user-defined topic name does not start with `/` and a namespace is set, the namespace is prepended to the user-defined topic name.
+            * If no topic name is explicitly specified and a namespace is set, the namespace is used as the prefix for the default topic name. In this case, the default topic name no longer uses `/model/{model_name}` as the prefix. For example, if the original default topic is `/model/{model_name}/cmd_vel`, setting a namespace changes the default topic to `{namespace}/cmd_vel`.
 
      2. `fixed but safe`: 
 
@@ -173,7 +224,9 @@ The goal of this design is to provide more consistent native namespace support i
           | ------- | --------- | --------------------- | -------------------------- |
           | /enable |           |                       | /model/{model_name}/enable |
 
-        - **Approach**: If a namespace attribute is set at any level, the final full namespace will be prepended to both customized topic names and default topic names. If no namespace attribute is set, the topic names will remain unchanged.
+        - **Approach**: 
+            * If no namespace is set, all topic names keep their existing naming behavior.
+            * If a namespace is set, the namespace is used as the prefix for the default topic name. In this case, the default topic name no longer uses `/model/{model_name}` as the prefix. For example, if the original default topic is `/model/{model_name}/cmd_vel`, setting a namespace changes the default topic to `{namespace}/cmd_vel`.
 
      4. `mixed`:
 
@@ -193,7 +246,12 @@ The goal of this design is to provide more consistent native namespace support i
           | /cmd    | namespace | /model/&lt;namespace&gt;/buoyancy_engine/               | /buoyancy_engine/               |
           | /status | namespace | /model/&lt;namespace&gt;/buoyancy_engine/current_volume | /buoyancy_engine/current_volume |
 
-        * **Approach**: If a namespace attribute is set at any level, the final full namespace will be prepended to both customized topic names and default topic names. If no namespace attribute is set, the topic names will remain unchanged.
+        * **Approach**: 
+            * If no namespace is set, all topic names keep their existing naming behavior.
+            * If a user-defined topic name starts with `/`, it is treated as an **absolute topic name**, so no namespace is prepended.
+            * If a user-defined topic name does not start with `/` and a namespace is set, the namespace is prepended to the user-defined topic name.
+            * If no topic name is explicitly specified and a namespace is set, the namespace is used as the prefix for the default topic name. In this case, the default topic name no longer uses `/model/{model_name}` as the prefix. For example, if the original default topic is `/model/{model_name}/cmd_vel`, setting a namespace changes the default topic to `{namespace}/cmd_vel`.
+
 
      5. `namespace`: 
 
