@@ -26,11 +26,13 @@ The goal of this design is to provide more consistent native namespace support i
 
    When a namespace is specified, Gazebo can use it to resolve relative communication interfaces. At the same time, users should still be able to use absolute names when they want a topic / service or interface to remain global. This keeps the feature flexible while preserving compatibility with existing configurations.
 
-4. More flexibility than reusing name
+4. More flexibility than automatic naming
 
    One possible alternative is to reuse the existing name field as the namespace. However, entity or plugin names are required, while namespaces should be optional. If Gazebo used entity names as namespaces automatically, every model or nested entity name could become part of the final topic / service  name.
 
    This can reduce user control and may produce unnecessarily long topic / service names in complex nested model structures. A separate optional namespace field gives users explicit control over the communication name. It allows the final topic / service name to include only the hierarchy levels that are chosen by user, instead of forcing it to follow the full entity naming hierarchy.
+
+   Another possible alternative is to rely on automatic renaming, similar to using `allow_renaming = true`, to avoid duplicated topic / service names by appending generated suffixes such as `_1` or `_2`. However, this still does not allow users to choose meaningful namespaces themselves. A separate namespace field is more flexible because it lets users define predictable topic / service names that match their robot or application structure.
 
 5. Clearer semantics
 
