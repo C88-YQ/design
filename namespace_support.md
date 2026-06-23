@@ -301,11 +301,17 @@ The goal of this design is to provide more consistent native namespace support i
 
 * **Related repo**: [ros_gz](https://github.com/gazebosim/ros_gz)
 
-* **Approach**: Following the existing handling of the `name` parameter, add support for a new `namespace` parameter in [ros_gz/ros_gz_sim/src/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/spawn_entity.cpp). Users can pass the `namespace` through a ROS command, and it will be injected into the `model` / `world` attribute.
+* **Approach**: Following the existing handling of the `name` parameter, add support for a new `namespace` parameter in :
+   * [ros_gz/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp)
+   * [ros_gz/ros_gz_sim/src/create.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/create.cpp)
+   * [ros_gz_sim/launch/gz_spawn_model.launch.py](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/launch/gz_spawn_model.launch.py)
+   * [ros_gz_sim/launch/ros_gz_spawn_model.launch.py](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/launch/ros_gz_spawn_model.launch.py)
+
+   So users can pass the `namespace` through a ROS command, and it will be injected into the `model` attribute.
 
 ## gz service Spawn: Add a new .msg
 
-* **Related repo**: [ros_gz](https://github.com/gazebosim/ros_gz)
+* **Related repo**: [ros_gz](https://github.com/gazebosim/ros_gz) ; [gz-sim](https://github.com/gazebosim/gz-sim)
 
 * **Approach**:
 
@@ -313,9 +319,12 @@ The goal of this design is to provide more consistent native namespace support i
 
      Reference: [ros_gz/ros_gz_interfaces/msg/EntityFactory.msg](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_interfaces/msg/EntityFactory.msg)
 
-  2. Inject the `namespace` into the `model` / `world` attribute
+  2. Inject the `namespace` into the `model` attribute
 
-     Reference:[ros_gz/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp)
+     Reference: [ros_gz/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp)
+
+   3. Add a new `create_with_ns` service in gz-sim
+    The `user_commands` system in `gz-sim` receives the new `EntityFactoryWithNs` message from the `/world/<world_name>/create_with_ns` service and creates the corresponding namespace component for the spawned model.
 
 ## Project Context
 
