@@ -9,7 +9,7 @@ However, each robot instance often needs its own communication scope. To avoid t
 The goal of this design is to provide more consistent native namespace support in Gazebo, allowing different model instances to be assigned different namespaces without duplicating or heavily modifying the original description file, while keeping their communication interfaces isolated and enabling more scalable multi-robot simulation.
 
 1. Consistent communication isolation
- 
+
    Gazebo currently does not provide a fully consistent mechanism for communication isolation. Some plugins already expose namespace-like configuration options, such as `namespace` parameter in [Thruster](https://github.com/gazebosim/gz-sim/blob/af5d2ac7f022547d4146324b08aee4af32318576/src/systems/thruster/Thruster.cc#L228-L233) and `robotNamespace` in [MulticopterVelocityControl](https://github.com/gazebosim/gz-sim/blob/af5d2ac7f022547d4146324b08aee4af32318576/src/systems/multicopter_control/MulticopterVelocityControl.cc#L248-L264), but this behavior is plugin-specific. Other plugins only expose individual topic / service names, and some interfaces may not provide an explicit isolation mechanism at all.
    
    This makes multi-robot configuration inconsistent: users need to understand the topic /service configuration behavior of each individual plugin or sensor, and different systems may require different ways to avoid topic /service collisions. Introducing a native namespace mechanism provides a shared concept that can be applied more consistently across Gazebo.
@@ -119,28 +119,29 @@ The goal of this design is to provide more consistent native namespace support i
 
      The `namespace` value in `include` could override the `namespace` of the top-level included `element`.
 
-  3. Support a **placeholder** such as `__name__`
+  3. Support a **placeholder** such as `__name__` and `__world__`
 
-     In many cases, the desired `namespace` is the same as the `name`. For this common case, it may be useful to support a **placeholder** such as `__name__`, which means “use the final resolved name of this element as the namespace”. For example:
+     In many cases, the desired `namespace` is related to the final resolved name of the **model** or to the **world**. For these common cases, it may be useful to support placeholders in the namespace string：
 
-     ```xml
-     <model name="robot" namespace="__name__">
-       ...
-     </model>
-     ```
-
-     For `ros_gz` users, they could specify only the `entity` name when spawning the robot, and the `namespace` could automatically follow that `name`.
-
-     ```bash
-     ros2 run gazebo_ros spawn_entity.py \
-       -entity robot1 \
-       -topic robot_description \
-     ```
-
+     - `__name__` represents the final resolved name of the current entity.
+     - `__world__` represents the name of the world that directly contains the current entity.
+  
+     The placeholders are replaced according to the following rules:
+  
+     1. A placeholder can appear anywhere in the namespace string, and it can appear multiple times. For example:
+  
+        ``` xml
+        <model name="robot" namespace="__name__"/> <!-- resolved_namespace="robot" -->
+        <model name="robot" namespace="__name__foo"/> <!-- resolved_namespace="robotfoo" -->
+        <model name="robot" namespace="/__name__/__name___foo"/> <!-- resolved_namespace="/robot/robot_foo" -->
+        ```
+  
+     2. If the corresponding name changes, the placeholder automatically follows the updated value. For example, when a model name is overridden through a ROS or gz spawn command, or when `allow_renaming` changes the final model name to avoid a name conflict, `__name__` is resolved using that final model name.
+  
   4. Fallback option: use a Gazebo-specific extension
-
+  
      Since changes to SDFormat need to consider a broader set of users and use cases, this design should not be based only on Gazebo-specific needs. So if adding a standard `namespace` attribute to SDFormat does not reach agreement, we could support a custom extension instead. For example:
-
+  
      ```
      <model name="robot" gz:namespace="robot1">
      	...
@@ -256,44 +257,63 @@ The goal of this design is to provide more consistent native namespace support i
 
 
      5. `namespace`: 
-
+    
         - **Scope**: These topics already have a namespace-like concept, which overlaps with the namespace scheme proposed in this design.
-
+    
         - **Example**:[src/systems/multicopter_control/MulticopterVelocityControl.cc](https://github.com/gazebosim/gz-sim/blob/main/src/systems/multicopter_control/MulticopterVelocityControl.cc)
-
+    
           | topic    | sdf param                                            | customized topic name               | default topic name        |
           | -------- | ---------------------------------------------------- | ----------------------------------- | ------------------------- |
           | /cmd_vel | robotNamespace(required) & commandSubtopic(optional) | /&lt;robotNamespace&gt;/&lt;commandSubtopic&gt; | /&lt;robotNamespace&gt;/cmd_vel |
           | /enable  | robotNamespace(required) & enableSubtopic(optional)  | /&lt;robotNamespace&gt;/&lt;enableSubtopic&gt;  | /&lt;robotNamespace&gt;/enable  |
-
+    
           **Note**: For this plugin, the namespace should first be resolved from the plugin namespace or the namespace of the model that directly contains the plugin. If either one is specified, it will be used as `robotNamespace`, regardless of whether the existing `robotNamespace` parameter is still present. If neither namespace is specified, the plugin will fall back to the existing `robotNamespace` parameter. If no namespace can be resolved, the plugin should report an error indicating that `robotNamespace` is required.
-
+    
         - **Approach**: Deprecate the existing parameter and recommend the new namespace definition as the preferred approach. The existing logic will still be kept in the code to make backporting easier and preserve compatibility.
-
+    
      6. `tf`:
-
+    
         * **Scope**: `/tf` in `AckermannSteering`, `DiffDrive`, `MecanumDrive`, `TrackedVehicle.cc`, `OdometryPublisher`
 
+        * **Design consideration**:
+
+            TF needs special consideration because TF topic names and TF frame IDs are closely related. In multi-robot simulations, Gazebo needs to avoid conflicts between different robot instances, while ROS users usually expect TF data to be available from `/tf`.
+
+            There are two main options：
+
+            1. Add the namespace to TF topic names.
+            
+               This keeps TF topics from different plugins isolated. Even if the frame IDs inside different TF messages are the same, there is no ambiguity on the Gazebo side because they are published on different topics. However, when bridging to ROS, users would need to bridge many different TF topics into `/tf`, and the frame IDs may also need to be overridden so that ROS can distinguish the frames from different robots.
+
+            2. Do not add the namespace to TF topic names.
+
+               In this case, all plugins can publish TF data to the same global TF topic. Users only need to bridge one TF topic, which makes the bridge configuration much simpler. However, this would make TF topics behave differently from other topics, which may also be confusing for users.
+
+               Also, in this case, the frame IDs themselves need to be unique. For multi-robot cases where users want to reuse the same SDF file, we would need some automatic frame name handling, such as prefixing the frame IDs with the full entity name hierarchy.
+
+
         * **Approach**:
+
+          Based on the above considerations, this doc proposes the following approach：
           1. Add a `gz:policies` option to make frame IDs hierarchical by taking model nesting into account.
           2. Treat TF topics the same as other topics. When a namespace is specified, it will be prepended to the TF topic name.
           3. With automatic topic bridging in `ros_gz`, all TF topics will be published to `/tf` on the ROS side by default. Advanced users can still override this behavior if they need separate TF topics in ROS.
-
+    
      7. `actuators`: 
-
+    
         * **Scope**:`AckermannSteering`, `JointController`, `JointPositionController`
-
+    
         * **Related discussion**: [zulip topic: Question about the design and usage of /actuators](https://openrobotics.zulipchat.com/#narrow/channel/526040-Gazebo-General/topic/Question.20about.20the.20design.20and.20usage.20of.20.2Factuators/near/595615090)
-
+    
         * **Example**:[gz-sim/src/systems/ackermann_steering/AckermannSteering.cc](https://github.com/gazebosim/gz-sim/blob/main/src/systems/ackermann_steering/AckermannSteering.cc)
-
+    
           | topic      | sdf param | customized topic name           | default topic name |
           | ---------- | --------- | ------------------------------- | ------------------ |
           | /actuators | topic     | /&lt;topic&gt;                     | /actuators         |
           |            | sub_topic | /model/{model_name}/&lt;sub_topic&gt; | /actuators         |
-
+    
         * **Approach**:
-
+    
           - Controlling part or all of the actuators of a single robot: Keep the existing `topic` and `sub_topic` handling logic. If the user sets a namespace parameter, the complete namespace generated above will be added before the user-defined topic name.
           - Controlling all actuators across all robots: For users who intentionally want to use one shared global actuator topic, an extra parameter could be provided to keep `/actuators` global. Reusing the same SDF file with a shared global `/actuators` topic may still require extra templating or computation, such as `xacro:macro`, to assign the correct actuator index range for each robot.
 
@@ -309,22 +329,22 @@ The goal of this design is to provide more consistent native namespace support i
 
    So users can pass the `namespace` through a ROS command, and it will be injected into the `model` attribute.
 
-## gz service Spawn: Add a new .msg
+## gz service Spawn: Add a new .proto
 
-* **Related repo**: [ros_gz](https://github.com/gazebosim/ros_gz) ; [gz-sim](https://github.com/gazebosim/gz-sim)
+* **Related repo**: [gz-msgs](https://github.com/gazebosim/gz-msgs); [ros_gz](https://github.com/gazebosim/ros_gz) ; [gz-sim](https://github.com/gazebosim/gz-sim); 
 
 * **Approach**:
 
-  1. Create a new `EntityFactoryWithNs.msg`
+  1. Create a new `entity_factory_with_ns.proto`
 
-     Reference: [ros_gz/ros_gz_interfaces/msg/EntityFactory.msg](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_interfaces/msg/EntityFactory.msg)
+     Reference: [gz-msgs/proto/gz/msgs/entity_factory.proto](https://github.com/gazebosim/gz-msgs/blob/main/proto/gz/msgs/entity_factory.proto)
 
   2. Inject the `namespace` into the `model` attribute
 
      Reference: [ros_gz/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp](https://github.com/gazebosim/ros_gz/blob/ros2/ros_gz_sim/src/gz_simulation_interfaces/services/spawn_entity.cpp)
 
    3. Add a new `create_with_ns` service in gz-sim
-    The `user_commands` system in `gz-sim` receives the new `EntityFactoryWithNs` message from the `/world/<world_name>/create_with_ns` service and creates the corresponding namespace component for the spawned model.
+      The `user_commands` system in `gz-sim` receives the new `EntityFactoryWithNs` message from the `/world/<world_name>/create_with_ns` service and creates the corresponding namespace component for the spawned model.
 
 ## Project Context
 
