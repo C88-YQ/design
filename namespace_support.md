@@ -119,25 +119,22 @@ The goal of this design is to provide more consistent native namespace support i
 
      The `namespace` value in `include` could override the `namespace` of the top-level included `element`.
 
-  3. Support a **placeholder** such as `__name__` and `__world__`
+  3. Support a **placeholder** such as `__name__`
 
-     In many cases, the desired `namespace` is related to the final resolved name of the **model** or to the **world**. For these common cases, it may be useful to support placeholders in the namespace string：
+     In many cases, the desired `namespace` is related to the final resolved name of the **model** or to the **world**. For these common cases, it may be useful to support placeholders in the namespace string. For example, `__name__` could represent the final resolved name of the current entity.
 
-     - `__name__` represents the final resolved name of the current entity.
-     - `__world__` represents the name of the world that directly contains the current entity.
-  
      The placeholders are replaced according to the following rules:
-  
+     
      1. A placeholder can appear anywhere in the namespace string, and it can appear multiple times. For example:
-  
+     
         ``` xml
         <model name="robot" namespace="__name__"/> <!-- resolved_namespace="robot" -->
         <model name="robot" namespace="__name__foo"/> <!-- resolved_namespace="robotfoo" -->
         <model name="robot" namespace="/__name__/__name___foo"/> <!-- resolved_namespace="/robot/robot_foo" -->
         ```
-  
+     
      2. If the corresponding name changes, the placeholder automatically follows the updated value. For example, when a model name is overridden through a ROS or gz spawn command, or when `allow_renaming` changes the final model name to avoid a name conflict, `__name__` is resolved using that final model name.
-  
+     
   4. Fallback option: use a Gazebo-specific extension
   
      Since changes to SDFormat need to consider a broader set of users and use cases, this design should not be based only on Gazebo-specific needs. So if adding a standard `namespace` attribute to SDFormat does not reach agreement, we could support a custom extension instead. For example:
@@ -274,26 +271,26 @@ The goal of this design is to provide more consistent native namespace support i
      6. `tf`:
     
         * **Scope**: `/tf` in `AckermannSteering`, `DiffDrive`, `MecanumDrive`, `TrackedVehicle.cc`, `OdometryPublisher`
-
+    
         * **Design consideration**:
-
+    
             TF needs special consideration because TF topic names and TF frame IDs are closely related. In multi-robot simulations, Gazebo needs to avoid conflicts between different robot instances, while ROS users usually expect TF data to be available from `/tf`.
-
+    
             There are two main options：
-
+    
             1. Add the namespace to TF topic names.
             
                This keeps TF topics from different plugins isolated. Even if the frame IDs inside different TF messages are the same, there is no ambiguity on the Gazebo side because they are published on different topics. However, when bridging to ROS, users would need to bridge many different TF topics into `/tf`, and the frame IDs may also need to be overridden so that ROS can distinguish the frames from different robots.
-
+    
             2. Do not add the namespace to TF topic names.
-
+    
                In this case, all plugins can publish TF data to the same global TF topic. Users only need to bridge one TF topic, which makes the bridge configuration much simpler. However, this would make TF topics behave differently from other topics, which may also be confusing for users.
-
+    
                Also, in this case, the frame IDs themselves need to be unique. For multi-robot cases where users want to reuse the same SDF file, we would need some automatic frame name handling, such as prefixing the frame IDs with the full entity name hierarchy.
 
 
         * **Approach**:
-
+    
           Based on the above considerations, this doc proposes the following approach：
           1. Add a `gz:policies` option to make frame IDs hierarchical by taking model nesting into account.
           2. Treat TF topics the same as other topics. When a namespace is specified, it will be prepended to the TF topic name.
