@@ -57,6 +57,21 @@ The goal of this design is to provide more consistent native namespace support i
 
    At the same time, there are valid cases where users may want the namespace to follow the entity name. To support this without conflating the two fields, this design provides the `__name__` placeholder for namespace values. When used, `__name__` is resolved to the corresponding entity name, allowing the namespace to automatically follow name changes while still keeping name and namespace as separate concepts.
 
+## Demo
+
+* **Namespace support comparison demos**: [ns_support_demo](https://github.com/azeey/gsoc2026_multirobot)
+
+  These demos compare three approaches for multi-robot communication isolation:
+  * [demo_ns_support](https://github.com/azeey/gsoc2026_multirobot/blob/main/ns_support_demo/demo_ns_support/README.md): uses the namespace support proposed in this design.
+  * [demo_original](https://github.com/azeey/gsoc2026_multirobot/blob/main/ns_support_demo/demo_original/README.md): shows the original topic-isolation workaround, including duplicated SDF files and remaining conflicts for topics that cannot be configured by users.
+  * [demo_xacro](https://github.com/azeey/gsoc2026_multirobot/blob/main/ns_support_demo/demo_xacro/README.md): uses xacro to generate SDF files with per-robot topic names. This reduces repeated SDF content, but users still need to understand and maintain xacro macros and parameters.
+
+  The comparison shows how native namespace support can keep topic names isolated while reusing the same model description, instead of duplicating model files or templating topic names through xacro.
+
+* **nav2_minimal_tb3_sim namespace support demo**: [demo_tb3](https://github.com/azeey/gsoc2026_multirobot/blob/main/ns_support_demo/demo_tb3/README.md)
+
+  This demo is based on `nav2_minimal_tb3_sim` from [nav2_minimal_turtlebot_simulation](https://github.com/ros-navigation/nav2_minimal_turtlebot_simulation). It shows how namespace support can be applied when spawning a TurtleBot3. The robot namespace is passed at spawn time, so the robot description no longer needs to encode a different topic namespace for each robot through xacro.
+
 ## SDFormat attribute
 
 * **Related repo**: [sdformat](https://github.com/gazebosim/sdformat)
