@@ -8,7 +8,65 @@ The purpose of automated bridge support is to let `ros_gz_bridge` discover compa
 
 This feature is intentionally opt-in. Existing YAML-based bridge configuration remains fully supported and keeps priority over automated discovery.
 
-## Approach and methods
+## Approach and Methods
+
+Automated bridge creation is implemented as an optional runtime discovery path in `ros_gz_bridge`. It is enabled through the `enable_automated_bridge` parameter and runs during the bridge heartbeat. Manual YAML bridges are still created first, and automated discovery only fills in compatible bridges that do not already exist.
+
+### Topic
+
+The topic bridge is created through the following steps:
+
+1. Discover Gazebo topics
+
+   The bridge lists all Gazebo topics and skips topics that already have an existing bridge. For each remaining topic, it queries Gazebo topic information and checks the types reported by all Gazebo publishers and subscribers. Multiple publishers or subscribers are allowed, but their topic type must be consistent and resolve to exactly one Gazebo message type.
+
+2. Determine bridge direction
+
+   The bridge direction is inferred from the Gazebo publishers and subscribers:
+
+   * Gazebo publisher only: the candidate direction is `GZ_TO_ROS`.
+   * Gazebo subscriber only: the candidate direction is `ROS_TO_GZ`.
+   <!-- * Gazebo publisher and subscriber with the same type: TODO -->
+
+3. Discover matching ROS topics
+
+   According to the inferred direction, the bridge queries the ROS graph for endpoints with the same topic name. For `GZ_TO_ROS`, it checks ROS subscribers. For `ROS_TO_GZ`, it checks ROS publishers. For bidirectional topics, it checks both ROS publishers and subscribers. Multiple ROS endpoints are allowed, but all discovered endpoint types must be consistent and resolve to exactly one ROS message type.
+
+   If no matching ROS endpoint exists yet, the topic is skipped in this heartbeat. It can still be bridged later when the ROS endpoint appears.
+
+4. Validate type mapping and create the bridge
+
+   After the Gazebo and ROS types are known, the bridge checks the generated `ros_gz_bridge` mapping table. A topic bridge is created only when the discovered ROS type is compatible with the discovered Gazebo type. If either side has no type, has multiple inconsistent types, or has no supported mapping, the topic is skipped in this heartbeat.
+
+### Service
+
+The service bridge is created through the following steps:
+
+1. Discover Gazebo services
+
+   The bridge lists all Gazebo services and skips services that already have an existing bridge. For each remaining service, it queries Gazebo service information and requires a single request / response type pair.
+
+2. Discover matching ROS clients
+
+   The bridge queries the ROS graph for service clients with the same service name. A service is considered bridgeable only when the ROS side has exactly one service type for that name.
+
+3. Validate service factory and create the bridge
+
+   The bridge calls `get_service_factory` with the ROS service type and the Gazebo request / response types. If a matching factory exists, it creates a ROS-to-Gazebo service bridge. Otherwise, the service is skipped.
+
+
+### Warning
+
+Automated discovery should be observable, but it should not flood the log on every heartbeat. The implementation records warning state per topic or service and only reports meaningful changes.
+
+Warnings are produced when:
+
+* The Gazebo topic or service type is missing or ambiguous.
+* ROS graph discovery fails.
+* The ROS topic or service type is missing or ambiguous.
+* The discovered ROS and Gazebo types do not match.
+
+In all of these cases, the interface is skipped instead of creating a risky bridge. This makes the automated bridge behavior predictable: it creates bridges only when the type and direction are clear, and it explains why an interface was not bridged when discovery is incomplete.
 
 ## Demo and Tests
 
@@ -70,7 +128,7 @@ The behavior test confirms that automated bridge creation works for all expected
 
 #### 2.1 Overview
 
-A [test package](https://github.com/azeey/gsoc2026_multirobot/tree/main/bridge/overhead——test) is provided to evaluate the runtime cost of automated bridge creation compared with the existing selective YAML bridge workflow. The test uses a controlled 12-robot Gazebo world with **124 Gazebo topics and 94 Gazebo services in total**.
+A [test package](https://github.com/azeey/gsoc2026_multirobot/tree/main/bridge/overhead_test) is provided to evaluate the runtime cost of automated bridge creation compared with the existing selective YAML bridge workflow. The test uses a controlled 12-robot Gazebo world with **124 Gazebo topics and 94 Gazebo services in total**.
 
 Each robot has an IMU and RGB-D camera, subscribes to `/cmd_vel` and `/enable`, and publishes odometry, TF, IMU, camera info, RGB image, depth image, and point cloud topics.
 
